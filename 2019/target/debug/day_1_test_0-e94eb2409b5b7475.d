@@ -1,1 +1,0 @@
-/home/amy/Development/advent-of-code/2019/target/debug/day_1_test_0-e94eb2409b5b7475: /home/amy/Development/advent-of-code/2019/day-1/src/lib.rs /home/amy/Development/advent-of-code/2019/day-1/tests/day-1-test-0.rs
