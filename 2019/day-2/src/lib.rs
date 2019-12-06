@@ -68,6 +68,17 @@ impl IntcodeMachine {
         self.mem.clone()
     }
 
+    /* Runs through all the steps and returns the value at positin 0 */
+    pub fn run(&mut self) -> Result<usize, String> {
+        loop {
+            match self.step() {
+                Ok(OPCODE::HALT) => return Ok(self.mem[0]),
+                Err(msg) => return Err(msg),
+                Ok(code) => { println!("{:?}", code); } 
+            }
+        }
+    }
+
     /* Convenience Functions */
     fn get_full_opcode(&self) -> Result<(usize, usize, usize), String> {
         let start = self.instr_ptr + 1;
