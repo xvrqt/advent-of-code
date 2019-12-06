@@ -1,186 +1,152 @@
-/* Intcode Computer */
-pub struct IntcodeMachine {
-    pc: usize,
-    bin: Vec<usize>,
-    mem: Vec<usize>,
-    instr_ptr: usize,
+/* Standard Library */
+use std::fs::File;
+use std::io::Read;
+use std::mem::size_of;
+use std::path::Path;
+use std::convert::TryFrom;
+use std::collections::HashSet;
+
+/* Represent the directions so things don't get stringy */
+pub enum WIRE {
+    UP(i64),
+    DOWN(i64),
+    LEFT(i64),
+    RIGHT(i64),
 }
 
-#[derive(Debug)]
-pub enum OPCODE {
-    ADD(usize, usize, usize),
-    MULTI(usize, usize, usize),
-    HALT,
+/* Open and read file to string, break up by lines */
+fn read_file<P: AsRef<Path>>(path: P) -> (String, String) {
+    let mut file = File::open(path).unwrap();
+    let mut s = String::with_capacity(1000);
+    file.read_to_string(&mut s).unwrap();
+
+    let line1 = s.lines().next().unwrap().to_owned();
+    let line2 = s.lines().next().unwrap().to_owned();
+
+    (line1, line2)
 }
 
-impl IntcodeMachine {
-    pub fn new(bin: Vec<usize>) -> Self {
-        let mem = bin.clone();
-        IntcodeMachine {
-            pc: 0,
-            bin,
-            mem,
-            instr_ptr: 0,
-        }
-    }
-
-    /* Performs the next opcode instruction. Mutates the mem. */
-    pub fn step(&mut self) -> Result<OPCODE, String> {
-        if let Some(opcode) = self.mem.get(self.instr_ptr) {
-            let result = match opcode {
-                1 => {
-                    let (input1, input2, output_ptr) = self.get_full_opcode()?;
-                    self.mem[output_ptr] = input1 + input2;
-                    Ok(OPCODE::ADD(input1, input2, output_ptr))
-                }
-                2 => {
-                    let (input1, input2, output_ptr) = self.get_full_opcode()?;
-                    self.mem[output_ptr] = input1 * input2;
-                    Ok(OPCODE::MULTI(input1, input2, output_ptr))
-                }
-                99 => {
-                    return Ok(OPCODE::HALT);
-                }
-                _ => {
-                    let error_msg = format!(
-                        "Unknown OP code '{}' at position {}.",
-                        opcode, self.instr_ptr
-                    );
-                    return Err(error_msg);
-                }
-            };
-
-            /* Increment the program counter by 1 and the pointer by 4 */
-            self.pc += 1;
-            self.instr_ptr += 4;
-            result
-        } else {
-            /* We somehow over indexed. Perhaps bad input? */
-            let error_msg = format!(
-                "Attempted to read opcode at position {} \
-                 which does not exist!",
-                self.instr_ptr
-            );
-            Err(error_msg)
-        }
-    }
-
-    /* Resets the computer */
-    pub fn reset(&mut self) {
-        self.pc = 0;
-        self.mem = self.bin.clone();
-        self.instr_ptr = 0;
-    }
-
-    /* Returns the value of the INTCODE at the specified position */
-    pub fn get_intcode(&self, position: usize) -> Option<usize> {
-        self.mem.get(position).cloned()
-    }
-
-    /* Returns a copy of the memory */
-    pub fn get_state(&self) -> Vec<usize> {
-        self.mem.clone()
-    }
-
-    /* Runs through all the steps and returns the value at position 0. Resets
-     * the machine when finished (but not on error).
-     */
-    pub fn run(&mut self) -> Result<usize, String> {
-        loop {
-            match self.step() {
-                Ok(OPCODE::HALT) => {
-                    let result = self.mem[0];
-                    self.reset();
-                    return Ok(result);
-                }
-                Err(msg) => return Err(msg),
-                Ok(_) => ()
+/* Parses a wire into a Vec of WIRE enums */
+fn parse_string_to_wire(wire: String) -> Vec<WIRE> {
+    /* Parse each wire, comma separated values */
+    wire.split(",").filter_map(|s| {
+        let (direction, distance) = s.split_at(1);
+        distance.parse().ok().and_then(|d| {
+            match direction {
+                "U" => Some(WIRE::UP(d)),
+                "D" => Some(WIRE::DOWN(d)),
+                "L" => Some(WIRE::LEFT(d)),
+                "R" => Some(WIRE::RIGHT(d)),
+                _   => panic!()
             }
+        })
+        
+    }).collect()
+}
+
+#[derive(Hash, Eq, PartialEq, Debug, Copy, Clone)]
+struct Position {
+    x: i64,
+    y: i64,
+}
+
+impl Position {
+    fn new(x: i64, y: i64) -> Self {
+        Self {
+            x,
+            y,
         }
     }
 
-    /* Like run() but allows you to set the first and second position */
-    pub fn run_with_inputs(&mut self, noun: usize, verb: usize) -> Result<usize, String> {
-        if self.mem.len() < 3 {
-            Err(String::from("Memory of insufficient lenght"))
-        } else {
-            self.mem[1] = noun;
-            self.mem[2] = verb;
-            self.run()
+    /* Takes a WIRE direction and returns a Vec of positions between this
+     * position and the end of the wire. Terrible name.
+    */
+    fn new_position(&self, delta: WIRE) -> Vec<Self> {
+        /* Convenience shadowing */
+        let x = self.x;
+        let y = self.y;
+        let difference = match delta {
+            WIRE::UP(d)    => d,
+            WIRE::DOWN(d)  => d,
+            WIRE::LEFT(d)  => d, 
+            WIRE::RIGHT(d) => d, 
+        };
+
+        /* Allocate the return vector */
+        let num_elements = usize::try_from(difference).unwrap();
+        let pos_size = size_of::<Position>();
+        let mut positions = Vec::with_capacity(num_elements * pos_size) ;
+
+        for i in 1..=difference {
+            let i = i64::try_from(i).unwrap();
+            let pos = match delta {
+                WIRE::UP(_)    => Self { x: x,     y: y + i },
+                WIRE::DOWN(_)  => Self { x: x,     y: y - i },
+                WIRE::LEFT(_)  => Self { x: x - i, y: y },
+                WIRE::RIGHT(_) => Self { x: x + i, y: y },
+            };
+            positions.push(pos);
         }
+        positions
     }
 
-    /* Convenience Functions */
-    fn get_full_opcode(&self) -> Result<(usize, usize, usize), String> {
-        let start = self.instr_ptr + 1;
-        let end = self.instr_ptr + 4;
-        let opcode = self.mem.get(start..end);
-
-        if let Some(opcode) = opcode {
-            let input1 = self.mem[opcode[0]];
-            let input2 = self.mem[opcode[1]];
-            let output_ptr = opcode[2];
-            Ok((input1, input2, output_ptr))
-        } else {
-            let error_msg = format!(
-                "Attempted to grab arguments for opcode {} \
-                 at position {} but arguments do not exist!",
-                self.pc, self.instr_ptr
-            );
-            Err(error_msg)
-        }
+    pub fn distance_from_origin(&self) -> i64 {
+        self.x.abs() + self.y.abs()
     }
+}
+
+/* Takes a wire and returns a set of positions the wire passed through */
+fn get_positions(wire: Vec<WIRE>) -> HashSet<Position> {
+    let mut set = HashSet::new();     
+    let mut current = Position::new(0,0);
+    for x in wire {
+       let mut positions = current.new_position(x); 
+       current = positions[positions.len() - 1];
+       for p in positions {
+           set.insert(p);
+       }
+    }
+
+    set
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn helper(input: Vec<usize>, answer: Vec<usize>) {
-        let mut computer = IntcodeMachine::new(input);
-        loop {
-            match computer.step() {
-                Ok(OPCODE::HALT) => {
-                    assert_eq!(computer.get_state(), answer);
-                    break;
-                }
-                Err(string) => {
-                    println!("{}", string);
-                    panic!();
-                }
-                Ok(code) => {
-                    println!("{:?}", code);
-                }
-            }
+    fn helper(w1: String, w2: String) -> i64 {
+        let wire1 = parse_string_to_wire(w1);
+        let wire2 = parse_string_to_wire(w2);
+
+        let positions1 = get_positions(wire1);
+        let positions2 = get_positions(wire2);
+
+
+        let intersection = positions1.intersection(&positions2);
+
+        let mut closest = Position::new(1000000,1000000);
+        for pos in intersection {
+           if pos.distance_from_origin() < closest.distance_from_origin() {
+                closest = *pos;
+           }
         }
+
+        closest.distance_from_origin()
     }
 
     #[test]
     fn test0() {
-        helper(vec![1, 0, 0, 0, 99], vec![2, 0, 0, 0, 99]);
+        let w1 = String::from("R75,D30,R83,U83,L12,D49,R71,U7,L72");
+        let w2 = String::from("U62,R66,U55,R34,D71,R55,D58,R83");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 159);
     }
 
     #[test]
-    fn test1() {
-        helper(vec![2, 3, 0, 3, 99], vec![2, 3, 0, 6, 99]);
-    }
-
-    #[test]
-    fn test2() {
-        helper(vec![2, 4, 4, 5, 99, 0], vec![2, 4, 4, 5, 99, 9801]);
-    }
-
-    #[test]
-    fn test3() {
-        helper(
-            vec![1, 1, 1, 4, 99, 5, 6, 0, 99],
-            vec![30, 1, 1, 4, 2, 5, 6, 0, 99],
-        );
-    }
-
-    #[test]
-    fn run_test0() {
-        let result = IntcodeMachine::new(vec![1,0,0,0,99]).run().unwrap();
-        assert_eq!(result, 2);
+    fn test0() {
+        let w1 = String::from("R75,D30,R83,U83,L12,D49,R71,U7,L72");
+        let w2 = String::from("U62,R66,U55,R34,D71,R55,D58,R83");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 159);
     }
 }
