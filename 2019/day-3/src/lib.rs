@@ -143,10 +143,10 @@ mod tests {
     }
 
     #[test]
-    fn test0() {
-        let w1 = String::from("R75,D30,R83,U83,L12,D49,R71,U7,L72");
-        let w2 = String::from("U62,R66,U55,R34,D71,R55,D58,R83");
+    fn test1() {
+        let w1 = String::from("R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51");
+        let w2 = String::from("U98,R91,D20,R16,D67,R40,U7,R15,U6,R7");
         let distance = helper(w1, w2);
-        assert_eq!(distance, 159);
+        assert_eq!(distance, 135);
     }
 }
