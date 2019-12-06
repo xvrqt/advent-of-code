@@ -7,12 +7,14 @@ use std::io::Read;
 
 #[test]
 /* Takes the input and calculates the final result of position 0 */
-fn rebuild_intcode_computer() -> Result<(), String> {
+fn determine_inputs() -> Result<(), String> {
     /* Read and parse the file */
     let mut file = File::open("input.txt").unwrap();
     let mut s = String::with_capacity(100);
     file.read_to_string(&mut s).unwrap();
-    let input: Vec<usize> = s.split(",").filter_map(|s| s.parse().ok()).collect();
+    let input: Vec<usize> = s.split(",")
+                             .filter_map(|s| s.parse().ok())
+                             .collect();
 
     let mut computer = IntcodeMachine::new(input);
 
