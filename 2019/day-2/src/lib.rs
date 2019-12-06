@@ -89,8 +89,9 @@ impl IntcodeMachine {
         loop {
             match self.step() {
                 Ok(OPCODE::HALT) => {
+                    let result = self.mem[0];
                     self.reset();
-                    return Ok(self.mem[0]);
+                    return Ok(result);
                 }
                 Err(msg) => return Err(msg),
                 Ok(code) => {
@@ -177,5 +178,11 @@ mod tests {
             vec![1, 1, 1, 4, 99, 5, 6, 0, 99],
             vec![30, 1, 1, 4, 2, 5, 6, 0, 99],
         );
+    }
+
+    #[test]
+    fn run_test0() {
+        let result = IntcodeMachine::new(vec![1,0,0,0,99]).run().unwrap();
+        assert_eq!(result, 2);
     }
 }
