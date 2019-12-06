@@ -94,9 +94,7 @@ impl IntcodeMachine {
                     return Ok(result);
                 }
                 Err(msg) => return Err(msg),
-                Ok(code) => {
-                    println!("{:?}", code);
-                }
+                Ok(_) => ()
             }
         }
     }
