@@ -1,10 +1,10 @@
 /* Standard Library */
+use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::mem::size_of;
 use std::path::Path;
-use std::convert::TryFrom;
-use std::collections::HashSet;
 
 /* Represent the directions so things don't get stringy */
 #[derive(Debug)]
@@ -26,27 +26,23 @@ pub fn read_file<P: AsRef<Path>>(path: P) -> (String, String) {
     let _ = buffer.read_line(&mut line1);
     let _ = buffer.read_line(&mut line2);
 
-    println!("{}", line2);
-
     (line1, line2)
 }
 
 /* Parses a wire into a Vec of WIRE enums */
 pub fn parse_string_to_wire(wire: String) -> Vec<WIRE> {
-    /* Parse each wire, comma separated values */
-    wire.split(",").filter_map(|s| {
-        let (direction, distance) = s.split_at(1);
-        distance.parse().ok().and_then(|d| {
-            match direction {
+    wire.split(',')
+        .filter_map(|s| {
+            let (direction, distance) = s.split_at(1);
+            distance.parse().ok().and_then(|d| match direction {
                 "U" => Some(WIRE::UP(d)),
                 "D" => Some(WIRE::DOWN(d)),
                 "L" => Some(WIRE::LEFT(d)),
                 "R" => Some(WIRE::RIGHT(d)),
-                _   => panic!()
-            }
+                _ => panic!(),
+            })
         })
-        
-    }).collect()
+        .collect()
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Copy, Clone)]
@@ -57,40 +53,37 @@ pub struct Position {
 
 impl Position {
     pub fn new(x: i64, y: i64) -> Self {
-        Self {
-            x,
-            y,
-        }
+        Self { x, y }
     }
 
     /* Takes a WIRE direction and returns a Vec of positions between this
      * position and the end of the wire. Terrible name.
-    */
+     */
     pub fn new_position(&self, delta: WIRE) -> Vec<Self> {
         /* Convenience shadowing */
         let x = self.x;
         let y = self.y;
         let difference = match delta {
-            WIRE::UP(d)    => d,
-            WIRE::DOWN(d)  => d,
-            WIRE::LEFT(d)  => d, 
-            WIRE::RIGHT(d) => d, 
+            WIRE::UP(d) => d,
+            WIRE::DOWN(d) => d,
+            WIRE::LEFT(d) => d,
+            WIRE::RIGHT(d) => d,
         };
 
         /* Allocate the return vector */
         let num_elements = usize::try_from(difference).unwrap();
         let pos_size = size_of::<Position>();
-        let mut positions = Vec::with_capacity(num_elements * pos_size) ;
+        let mut positions = Vec::with_capacity(num_elements * pos_size);
 
         for i in 0..=difference {
             let i = i64::try_from(i).unwrap();
             let pos = match delta {
-                WIRE::UP(_)    => Self { x: x,     y: y + i },
-                WIRE::DOWN(_)  => Self { x: x,     y: y - i },
-                WIRE::LEFT(_)  => Self { x: x - i, y: y },
-                WIRE::RIGHT(_) => Self { x: x + i, y: y },
+                WIRE::UP(_) => Self { x, y: y + i },
+                WIRE::DOWN(_) => Self { x, y: y - i },
+                WIRE::LEFT(_) => Self { x: x - i, y },
+                WIRE::RIGHT(_) => Self { x: x + i, y },
             };
-            let test = Self { x: 2, y:0 };
+            let test = Self { x: 2, y: 0 };
             if pos == test {
                 println!("{:?}", delta);
             }
@@ -106,15 +99,15 @@ impl Position {
 
 /* Takes a wire and returns a set of positions the wire passed through */
 pub fn get_positions(wire: Vec<WIRE>) -> HashSet<Position> {
-    let mut set = HashSet::new();     
-    let mut current = Position::new(0,0);
+    let mut set = HashSet::new();
+    let mut current = Position::new(0, 0);
     for x in wire {
-       let mut positions = current.new_position(x); 
-       current = positions.pop().unwrap();
-       set.insert(current);
-       for p in positions {
-           set.insert(p);
-       }
+        let mut positions = current.new_position(x);
+        current = positions.pop().unwrap();
+        set.insert(current);
+        for p in positions {
+            set.insert(p);
+        }
     }
 
     set
@@ -131,17 +124,17 @@ mod tests {
         let mut positions1 = get_positions(wire1);
         let mut positions2 = get_positions(wire2);
 
-        let origin = Position::new(0,0);
+        let origin = Position::new(0, 0);
         positions1.remove(&origin);
         positions2.remove(&origin);
 
         let intersection = positions1.intersection(&positions2);
 
-        let mut closest = Position::new(1000000,1000000);
+        let mut closest = Position::new(1000000, 1000000);
         for pos in intersection {
-           if pos.distance_from_origin() < closest.distance_from_origin() {
+            if pos.distance_from_origin() < closest.distance_from_origin() {
                 closest = *pos;
-           }
+            }
         }
 
         closest.distance_from_origin()
