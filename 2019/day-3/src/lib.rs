@@ -1,12 +1,13 @@
 /* Standard Library */
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufRead, BufReader};
 use std::mem::size_of;
 use std::path::Path;
 use std::convert::TryFrom;
 use std::collections::HashSet;
 
 /* Represent the directions so things don't get stringy */
+#[derive(Debug)]
 pub enum WIRE {
     UP(i64),
     DOWN(i64),
@@ -15,19 +16,23 @@ pub enum WIRE {
 }
 
 /* Open and read file to string, break up by lines */
-fn read_file<P: AsRef<Path>>(path: P) -> (String, String) {
-    let mut file = File::open(path).unwrap();
-    let mut s = String::with_capacity(1000);
-    file.read_to_string(&mut s).unwrap();
+pub fn read_file<P: AsRef<Path>>(path: P) -> (String, String) {
+    let file = File::open(path).unwrap();
+    let mut buffer = BufReader::new(file);
 
-    let line1 = s.lines().next().unwrap().to_owned();
-    let line2 = s.lines().next().unwrap().to_owned();
+    let mut line1 = String::with_capacity(1000);
+    let mut line2 = String::with_capacity(1000);
+
+    let _ = buffer.read_line(&mut line1);
+    let _ = buffer.read_line(&mut line2);
+
+    println!("{}", line2);
 
     (line1, line2)
 }
 
 /* Parses a wire into a Vec of WIRE enums */
-fn parse_string_to_wire(wire: String) -> Vec<WIRE> {
+pub fn parse_string_to_wire(wire: String) -> Vec<WIRE> {
     /* Parse each wire, comma separated values */
     wire.split(",").filter_map(|s| {
         let (direction, distance) = s.split_at(1);
@@ -45,13 +50,13 @@ fn parse_string_to_wire(wire: String) -> Vec<WIRE> {
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Copy, Clone)]
-struct Position {
+pub struct Position {
     x: i64,
     y: i64,
 }
 
 impl Position {
-    fn new(x: i64, y: i64) -> Self {
+    pub fn new(x: i64, y: i64) -> Self {
         Self {
             x,
             y,
@@ -61,7 +66,7 @@ impl Position {
     /* Takes a WIRE direction and returns a Vec of positions between this
      * position and the end of the wire. Terrible name.
     */
-    fn new_position(&self, delta: WIRE) -> Vec<Self> {
+    pub fn new_position(&self, delta: WIRE) -> Vec<Self> {
         /* Convenience shadowing */
         let x = self.x;
         let y = self.y;
@@ -77,7 +82,7 @@ impl Position {
         let pos_size = size_of::<Position>();
         let mut positions = Vec::with_capacity(num_elements * pos_size) ;
 
-        for i in 1..=difference {
+        for i in 0..=difference {
             let i = i64::try_from(i).unwrap();
             let pos = match delta {
                 WIRE::UP(_)    => Self { x: x,     y: y + i },
@@ -85,6 +90,10 @@ impl Position {
                 WIRE::LEFT(_)  => Self { x: x - i, y: y },
                 WIRE::RIGHT(_) => Self { x: x + i, y: y },
             };
+            let test = Self { x: 2, y:0 };
+            if pos == test {
+                println!("{:?}", delta);
+            }
             positions.push(pos);
         }
         positions
@@ -96,12 +105,13 @@ impl Position {
 }
 
 /* Takes a wire and returns a set of positions the wire passed through */
-fn get_positions(wire: Vec<WIRE>) -> HashSet<Position> {
+pub fn get_positions(wire: Vec<WIRE>) -> HashSet<Position> {
     let mut set = HashSet::new();     
     let mut current = Position::new(0,0);
     for x in wire {
        let mut positions = current.new_position(x); 
-       current = positions[positions.len() - 1];
+       current = positions.pop().unwrap();
+       set.insert(current);
        for p in positions {
            set.insert(p);
        }
@@ -118,9 +128,12 @@ mod tests {
         let wire1 = parse_string_to_wire(w1);
         let wire2 = parse_string_to_wire(w2);
 
-        let positions1 = get_positions(wire1);
-        let positions2 = get_positions(wire2);
+        let mut positions1 = get_positions(wire1);
+        let mut positions2 = get_positions(wire2);
 
+        let origin = Position::new(0,0);
+        positions1.remove(&origin);
+        positions2.remove(&origin);
 
         let intersection = positions1.intersection(&positions2);
 
@@ -148,5 +161,61 @@ mod tests {
         let w2 = String::from("U98,R91,D20,R16,D67,R40,U7,R15,U6,R7");
         let distance = helper(w1, w2);
         assert_eq!(distance, 135);
+    }
+
+    #[test]
+    fn test2() {
+        let w1 = String::from("R8,U5,L5,D3");
+        let w2 = String::from("U7,R6,D4,L4");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 6);
+    }
+
+    #[test]
+    fn test3() {
+        let w1 = String::from("L1,D1");
+        let w2 = String::from("D1,L1");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 2);
+    }
+
+    #[test]
+    fn test4() {
+        let w1 = String::from("R8,U8,R8,U8");
+        let w2 = String::from("U8,R8,U8,R8");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 16);
+    }
+
+    #[test]
+    fn test5() {
+        let w1 = String::from("R8,U1,R8,U1");
+        let w2 = String::from("U2,R16,D1");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 17);
+    }
+
+    #[test]
+    fn test6() {
+        let w1 = String::from("R8,U1,R8,U1");
+        let w2 = String::from("U2,R16");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 18);
+    }
+
+    #[test]
+    fn test7() {
+        let w1 = String::from("R8");
+        let w2 = String::from("R16");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 1);
+    }
+
+    #[test]
+    fn test8() {
+        let w1 = String::from("U1,R8,L16");
+        let w2 = String::from("D16,L8,U17");
+        let distance = helper(w1, w2);
+        assert_eq!(distance, 9);
     }
 }
